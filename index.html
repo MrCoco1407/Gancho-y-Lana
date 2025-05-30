@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gancho y Lana</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <img 
+      src="logo.png"
+      alt="Logotipo Gancho y Lana"
+      class="logo-img"
+    />
+    <span class="site-title">
+      Gancho y Lana
+    </span>
+  </header>
+
+  <nav id="main-nav">
+    <button class="tab-button active" data-tab="news">Novedades y Noticias</button>
+    <button class="tab-button" data-tab="tutorials">Tutoriales en Video</button>
+    <button class="tab-button" data-tab="stitches">Instrucciones de Puntos</button>
+  </nav>
+
+  <main id="content-main">
+    <!-- NEWS TAB -->
+    <section id="news" class="tab-content" style="display: block;">
+      <h2>Novedades y Noticias</h2>
+      <ul>
+        <li>El crochet vuelve a ser tendencia en la moda sostenible.</li>
+        <li>Nuevo taller online de técnicas avanzadas de crochet.</li>
+        <li>Beneficios para la salud mental al practicar crochet regularmente.</li>
+        <li>Encuentros y ferias de crochet locales programados para este mes.</li>
+        <li>Cómo el crochet está ayudando a comunidades rurales a generar ingresos.</li>
+      </ul>
+    </section>
+
+    <!-- TUTORIALS TAB -->
+    <section id="tutorials" class="tab-content" style="display: none;">
+      <h2>Tutoriales en Video</h2>
+      <input
+        type="text"
+        id="tutorials-search-input"
+        class="search-input"
+        placeholder="Busca tutoriales en YouTube (ej: suéter a crochet)"
+      />
+      <div id="video-results"></div>
+    </section>
+
+    <!-- STITCHES TAB -->
+    <section id="stitches" class="tab-content" style="display: none;">
+      <h2>Instrucciones de Puntos</h2>
+      <input
+        type="text"
+        id="stitches-search-input"
+        class="search-input"
+        placeholder="Busca instrucciones de puntos (ej: punto bajo)"
+      />
+      <div id="stitch-video-results"></div>
+    </section>
+  </main>
+
+  <div id="contador-vueltas">
+    <span>Contador de vueltas:</span>
+    <div class="contador-controles">
+      <button id="restar-vuelta">-</button>
+      <span id="vueltas-numero">0</span>
+      <button id="sumar-vuelta">+</button>
+      <button id="reset-vuelta" title="Reiniciar">⟳</button>
+    </div>
+  </div>
+
+  <script>
+    // ... (todo el código JS igual que antes)
+    // Debes reemplazar estos valores por tus claves API
+    const YOUTUBE_API_KEY = 'AIzaSyC_3hqaac-cfrlH43myj1bFGq8nJmuo2c4';
+    const GOOGLE_API_KEY = 'AIzaSyAxKYCk5O1xGLJYH803aGaVzPvx5u2NHHM';
+    const GOOGLE_CX = 'TU_CX_DE_CUSTOM_SEARCH';
+
+    // Navegación entre pestañas
+    const tabButtons = document.querySelectorAll(".tab-button");
+    const tabContents = document.querySelectorAll(".tab-content");
+
+    tabButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tabName = btn.getAttribute("data-tab");
+        setActiveTab(tabName);
+      });
+    });
+
+    function setActiveTab(tabName) {
+      tabButtons.forEach((btn) => {
+        btn.classList.toggle(btn.getAttribute("data-tab") === tabName, true);
+        btn.classList.toggle(btn.getAttribute("data-tab") !== tabName, false);
+      });
+      tabContents.forEach((content) => {
+        content.style.display = content.id === tabName ? "block" : "none";
+      });
+
+      // Lanzar búsqueda automática al cambiar de pestaña
+      if (tabName === "tutorials") {
+        // Búsqueda predeterminada de tutoriales
+        tutorialsSearchInput.value = "crochet fácil";
+        tutorialsSearchInput.dispatchEvent(new Event("input"));
+      }
+      if (tabName === "stitches") {
+        // Búsqueda predeterminada de puntos
+        stitchesSearchInput.value = "punto bajo crochet";
+        stitchesSearchInput.dispatchEvent(new Event("input"));
+      }
+    }
+
+    // Función para buscar videos en YouTube usando API Key y Fetch
+    async function searchYouTube(query, maxResults = 5) {
+      if (!YOUTUBE_API_KEY || YOUTUBE_API_KEY === 'TU_API_KEY_DE_YOUTUBE') {
+        console.warn('Debes reemplazar YOUTUBE_API_KEY con tu clave API válida.');
+        return [];
+      }
+      const encodedQuery = encodeURIComponent(query);
+      const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${maxResults}&q=${encodedQuery}&key=${YOUTUBE_API_KEY}`;
+
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          throw new Error(`Error en la API de YouTube: ${res.status}`);
+        }
+        const data = await res.json();
+        return data.items || [];
+      } catch (error) {
+        console.error("Error al obtener datos de YouTube:", error);
+        return [];
+      }
+    }
+
+    function displayVideos(container, videos) {
+      container.innerHTML = "";
+      if (videos.length === 0) {
+        container.innerHTML = "<p>No se encontraron videos para tu búsqueda.</p>";
+        return;
+      }
+      videos.forEach((video) => {
+        const videoId = video.id.videoId;
+        const title = video.snippet.title;
+        const iframe = document.createElement("iframe");
+        iframe.src = `https://www.youtube.com/embed/${videoId}`;
+        iframe.title = title;
+        iframe.allow =
+          "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+        iframe.allowFullscreen = true;
+        container.appendChild(iframe);
+      });
+    }
+
+    // Buscador tutoriales
+    const tutorialsSearchInput = document.getElementById("tutorials-search-input");
+    const videoResultsContainer = document.getElementById("video-results");
+
+    tutorialsSearchInput.addEventListener("input", async () => {
+      const query = tutorialsSearchInput.value.toLowerCase().trim();
+      if (!query) {
+        videoResultsContainer.innerHTML = "";
+        return;
+      }
+      const videos = await searchYouTube(query + " crochet tutorial");
+      displayVideos(videoResultsContainer, videos);
+    });
+
+    // Función para buscar instrucciones de puntos en la web (Google Custom Search API)
+    async function searchWeb(query, maxResults = 5) {
+      if (!GOOGLE_API_KEY || !GOOGLE_CX || GOOGLE_API_KEY === 'TU_API_KEY_DE_GOOGLE' || GOOGLE_CX === 'TU_CX_DE_CUSTOM_SEARCH') {
+        console.warn('Debes reemplazar GOOGLE_API_KEY y GOOGLE_CX con valores válidos.');
+        return [];
+      }
+      const encodedQuery = encodeURIComponent(query);
+      const url = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${GOOGLE_CX}&q=${encodedQuery}&num=${maxResults}`;
+
+      try {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`Error en la API de Google: ${res.status}`);
+          const data = await res.json();
+          return data.items || [];
+      } catch (error) {
+          console.error("Error al obtener datos de Google:", error);
+          return [];
+      }
+    }
+
+    function displayWebResults(container, results) {
+      if (!results.length) return;
+      const list = document.createElement('ul');
+      results.forEach(item => {
+          const li = document.createElement('li');
+          li.innerHTML = `<a href="${item.link}" target="_blank" rel="noopener">${item.title}</a><br><small>${item.snippet}</small>`;
+          list.appendChild(li);
+      });
+      container.appendChild(list);
+    }
+
+    // Buscador puntos
+    const stitchesSearchInput = document.getElementById("stitches-search-input");
+    const stitchesVideoResultsContainer = document.getElementById("stitch-video-results");
+
+    stitchesSearchInput.addEventListener("input", async () => {
+      const query = stitchesSearchInput.value.toLowerCase().trim();
+      stitchesVideoResultsContainer.innerHTML = "";
+      if (!query) return;
+
+      // Buscar videos de YouTube
+      const videos = await searchYouTube(query + " punto crochet");
+      displayVideos(stitchesVideoResultsContainer, videos);
+
+      // Buscar resultados web
+      const webResults = await searchWeb(query + " punto crochet");
+      if (webResults.length) {
+          const title = document.createElement('h3');
+          title.textContent = "Resultados en Internet";
+          stitchesVideoResultsContainer.appendChild(title);
+          displayWebResults(stitchesVideoResultsContainer, webResults);
+      }
+    });
+
+    // Contador de vueltas
+    const vueltasNumero = document.getElementById('vueltas-numero');
+    const sumarVuelta = document.getElementById('sumar-vuelta');
+    const restarVuelta = document.getElementById('restar-vuelta');
+    const resetVuelta = document.getElementById('reset-vuelta');
+    let vueltas = 0;
+
+    function actualizarVueltas() {
+      vueltasNumero.textContent = vueltas;
+    }
+    sumarVuelta.onclick = () => {
+      vueltas++;
+      actualizarVueltas();
+    };
+    restarVuelta.onclick = () => {
+      if (vueltas > 0) vueltas--;
+      actualizarVueltas();
+    };
+    resetVuelta.onclick = () => {
+      vueltas = 0;
+      actualizarVueltas();
+    };
+    actualizarVueltas();
+  </script>
+</body>
+</html>
